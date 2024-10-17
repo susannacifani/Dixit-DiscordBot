@@ -21,7 +21,6 @@ round_index = 0
 storyteller_card = None  # Carta scelta dal narratore
 hands = {}  # Mani di carte per ogni giocatore
 played_cards = []  # Lista delle carte giocate da tutti i giocatori
-storyteller_described = False
 storyteller_chose = False
 votes = {}  # Dizionario che memorizza i voti
 points = {}  # Punteggi per i giocatori
@@ -84,39 +83,18 @@ async def send_message(ctx, message):
 
 
 
-# Comando per il narratore per descrivere una carta
-@bot.hybrid_command(name="describe", description="Descrivi una carta come narratore")
-async def describe_card(ctx: commands.Context, *, description: str):
-    global storyteller_index, storyteller_described
-    storyteller = players[storyteller_index]
-
-    # Controllo se l'autore del comando è il narratore
-    if ctx.author != storyteller:
-        await send_message(ctx, "Solo il narratore può descrivere una carta.")
-        return
-    
-    if storyteller_described:
-        await send_message(ctx, "Il narratore ha già descritto la carta.")
-        return
-
-    # Il narratore descrive la carta
-    storyteller_described = True
-    await send_message(ctx, f"{storyteller.display_name} ha descritto la sua carta: '{description}'! Ora invia il numero della carta che vuoi giocare con !choose [numero_carta].")
-
-
-# Comando per il narratore per scegliere la carta
-@bot.hybrid_command(name="choose", description="Scegli la carta che vuoi giocare")
-async def choose_card(ctx: commands.Context, numero_carta: int):
+@bot.hybrid_command(name="describe_and_choose", description="Scegli il numero della carta e descrivila.")
+async def describe_and_choose(ctx: commands.Context, numero_carta: int, description: str):
     global storyteller_index, storyteller_card, hands, storyteller_chose
     storyteller = players[storyteller_index]
 
     # Controllo se l'autore del comando è il narratore
     if ctx.author != storyteller:
-        await send_message(ctx, "Solo il narratore può scegliere la carta in questa fase.")
+        await send_message(ctx, "Solo il narratore può scegliere e descrivere la carta in questa fase.")
         return
     
     if storyteller_chose:
-        await send_message(ctx, "Il narratore ha già scelto la carta.")
+        await send_message(ctx, "Il narratore ha già scelto e descritto la carta.")
         return
 
     # Verifica che il numero della carta sia valido
@@ -129,10 +107,9 @@ async def choose_card(ctx: commands.Context, numero_carta: int):
     storyteller_chose = True
     storyteller_card = hand.pop(numero_carta - 1)  # Rimuove la carta dalla mano
     played_cards.append((ctx.author, storyteller_card))  # Aggiunge la carta giocata
-    await send_message(ctx, f"{storyteller.display_name} ha scelto una carta segretamente.")
+    await ctx.interaction.response.send_message(f"{storyteller.display_name} ha scelto e descritto la sua carta: '{description}'.\n" 
+                                                "Gli altri giocatori ora devono scegliere una carta che si adatta alla descrizione usando !playcard [numero_carta].")
 
-    # A questo punto, gli altri giocatori possono giocare le loro carte
-    await send_message(ctx, "Gli altri giocatori ora devono scegliere una carta che si adatta alla descrizione usando !playcard [numero_carta].")
 
 
 # Comando per i giocatori per scegliere una carta
@@ -146,7 +123,7 @@ async def play_card(ctx: commands.Context, numero_carta: int):
         await send_message(ctx, "Il narratore non può giocare una carta in questa fase.")
         return
     
-    if not storyteller_described and not storyteller_chose:
+    if not storyteller_chose:
         await send_message(ctx, "Il narratore non ha ancora descritto e/o scelto la carta da giocare.")
         return
 
@@ -219,7 +196,7 @@ async def vote_card(ctx: commands.Context, numero_carta: int):
 
 # Funzione per calcolare i punti
 async def calculate_scores(ctx: commands.Context):
-    global storyteller_card, played_cards, votes, points, storyteller_index, deck, round_index, storyteller_described, storyteller_chose
+    global storyteller_card, played_cards, votes, points, storyteller_index, deck, round_index, storyteller_chose
     storyteller = players[storyteller_index]
 
     # Trova l'indice della carta del narratore
@@ -268,7 +245,6 @@ async def calculate_scores(ctx: commands.Context):
     storyteller_card = None
     hands.clear()
     played_cards.clear()
-    storyteller_described = False
     storyteller_chose = False
     votes.clear()
     deck = copy.deepcopy(complete_deck)
