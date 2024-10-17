@@ -25,6 +25,37 @@ storyteller_chose = False
 votes = {}  # Dizionario che memorizza i voti
 points = {}  # Punteggi per i giocatori
 
+# Classe per i bottoni di votazione dinamici
+class DynamicVoteButton(discord.ui.View):
+    def __init__(self, ctx, num_buttons):
+        super().__init__(timeout=None)
+        self.ctx = ctx
+        self.result = None
+        self.voted_users = set()  # Set per tracciare chi ha votato
+        self.create_buttons(num_buttons)
+
+    # Funzione per creare i bottoni dinamicamente
+    def create_buttons(self, num_buttons):
+        for i in range(1, num_buttons + 1):
+            self.add_item(VoteButton(label=str(i), button_id=i, parent_view=self))
+
+# Classe per gestire il singolo bottone di voto
+class VoteButton(discord.ui.Button):
+    def __init__(self, label, button_id, parent_view):
+        super().__init__(label=label, style=discord.ButtonStyle.primary, custom_id=str(button_id))
+        self.button_id = button_id
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        # Controlla se l'utente ha già votato
+        if interaction.user.id in self.parent_view.voted_users:
+            await interaction.response.send_message("Hai già votato!", ephemeral=True)
+        else:
+            # Gestisci il voto dell'utente
+            self.parent_view.voted_users.add(interaction.user.id)  # Aggiungi l'utente alla lista di chi ha votato
+            await interaction.response.send_message(f"Hai votato per la carta {self.button_id}!", ephemeral=True)
+
+
 
 # Funzione per caricare le carte
 def load_cards():
@@ -149,24 +180,22 @@ async def show_cards(ctx: commands.Context):
     # Mescola le carte
     random.shuffle(played_cards)
 
-    # Prepara una lista di file delle immagini delle carte e dei testi da inviare in un solo messaggio
+    # Prepara una lista di file delle immagini delle carte e testo da inviare in un solo messaggio
     carte_da_mostrare = []
     messaggio_carte = "Ecco le carte:\n"
-    #messaggio_carte = ""
 
     # Prepara il messaggio contenente i numeri delle carte
     for i, (player, card) in enumerate(played_cards, start=1):
         file_path = os.path.join(cards_folder, card)
-        #messaggio_carte += f"Carta {i}:\n"
         carte_da_mostrare.append(discord.File(file_path))  # Aggiungi il file della carta alla lista
 
-    #messaggio_carte.append("\n Votate la carta che pensate sia quella del narratore usando !vote [numero_carta].")
     # Invia tutte le carte in un solo messaggio
     await ctx.send(messaggio_carte, files=carte_da_mostrare)
-    #await ctx.send(messaggio_carte, files=carte_da_mostrare)
 
-    # Informa i giocatori di votare
-    #await send_message(ctx, "Votate la carta che pensate sia quella del narratore usando !vote [numero_carta].")
+    # Crea i bottoni dinamicamente in base al numero di carte
+    num_buttons = len(played_cards)
+    view = DynamicVoteButton(ctx, num_buttons)
+    await ctx.send("Scegli la carta che pensi sia quella del narratore cliccando su un bottone:", view=view)
 
 
 # Comando per votare una carta
