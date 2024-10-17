@@ -27,11 +27,12 @@ points = {}  # Punteggi per i giocatori
 
 # Modifica la classe DynamicVoteButton per gestire i voti
 class DynamicVoteButton(discord.ui.View):
-    def __init__(self, ctx, num_buttons):
+    def __init__(self, ctx, num_buttons, storyteller):
         super().__init__(timeout=None)
         self.ctx = ctx
         self.result = None
         self.voted_users = set()  # Set per tracciare chi ha votato
+        self.storyteller = storyteller  # Aggiungi il narratore come attributo
         global votes
         votes = {i: 0 for i in range(1, num_buttons + 1)}  # Inizializza i voti per la votazione
         self.create_buttons(num_buttons)
@@ -49,6 +50,11 @@ class VoteButton(discord.ui.Button):
         self.parent_view = parent_view
 
     async def callback(self, interaction: discord.Interaction):
+        # Controlla se l'utente è il narratore
+        if interaction.user == self.parent_view.storyteller:  # Verifica se l'utente è il narratore
+            await interaction.response.send_message("Il narratore non può votare!", ephemeral=True)
+            return
+        
         # Controlla se l'utente ha già votato
         if interaction.user.id in self.parent_view.voted_users:
             await interaction.response.send_message("Hai già votato!", ephemeral=True)
@@ -204,7 +210,8 @@ async def show_cards(ctx: commands.Context):
 
     # Crea i bottoni dinamicamente in base al numero di carte
     num_buttons = len(played_cards)
-    view = DynamicVoteButton(ctx, num_buttons)
+    storyteller = players[storyteller_index]
+    view = DynamicVoteButton(ctx, num_buttons, storyteller)
     await ctx.send("Scegli la carta che pensi sia quella del narratore cliccando su un bottone:", view=view)
 
     # Aggiungi la logica per gestire i voti al termine della votazione
