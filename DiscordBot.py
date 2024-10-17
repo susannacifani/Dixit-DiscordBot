@@ -21,18 +21,20 @@ round_index = 0
 storyteller_card = None  # Carta scelta dal narratore
 hands = {}  # Mani di carte per ogni giocatore
 played_cards = []  # Lista delle carte giocate da tutti i giocatori
+played_cards_by_players = {}  # Lista delle carte giocate e associate ai giocatori (tranne il narratore)
 storyteller_chose = False
 votes = {}  # Dizionario che memorizza i voti
 points = {}  # Punteggi per i giocatori
 
 # Modifica la classe DynamicVoteButton per gestire i voti
 class DynamicVoteButton(discord.ui.View):
-    def __init__(self, ctx, num_buttons, storyteller):
+    def __init__(self, ctx, num_buttons, storyteller, card_list):
         super().__init__(timeout=None)
         self.ctx = ctx
         self.result = None
         self.voted_users = set()  # Set per tracciare chi ha votato
         self.storyteller = storyteller  # Aggiungi il narratore come attributo
+        self.card_list = card_list
         global votes
         votes = {i: 0 for i in range(1, num_buttons + 1)}  # Inizializza i voti per la votazione
         self.create_buttons(num_buttons)
@@ -40,14 +42,16 @@ class DynamicVoteButton(discord.ui.View):
     # Funzione per creare i bottoni dinamicamente
     def create_buttons(self, num_buttons):
         for i in range(1, num_buttons + 1):
-            self.add_item(VoteButton(label=str(i), button_id=i, parent_view=self))
+            self.add_item(VoteButton(label=str(i), button_id=i, parent_view=self, card_list=self.card_list))
 
 # Modifica la classe VoteButton
 class VoteButton(discord.ui.Button):
-    def __init__(self, label, button_id, parent_view):
+    def __init__(self, label, button_id, parent_view, card_list):
         super().__init__(label=label, style=discord.ButtonStyle.primary, custom_id=str(button_id))
-        self.button_id = button_id
+        self.button_id = button_id # num bottone (es 1, 2, ...)
         self.parent_view = parent_view
+        global played_cards_by_players
+        self.card_list = card_list
 
     async def callback(self, interaction: discord.Interaction):
         # Controlla se l'utente è il narratore
@@ -58,6 +62,20 @@ class VoteButton(discord.ui.Button):
         # Controlla se l'utente ha già votato
         if interaction.user.id in self.parent_view.voted_users:
             await interaction.response.send_message("Hai già votato!", ephemeral=True)
+            return
+        
+        #print("\n played_cards_by_players: ", played_cards_by_players)
+
+        # Controlla se l'utente sta cercando di votare la propria carta
+        user_card = played_cards_by_players.get(interaction.user)  # Ottieni la carta giocata dall'utente
+        #print("\n user_card: ", user_card)
+        #print("\n self.button_id: ", self.button_id)
+        voted_card = self.card_list[self.button_id-1]
+        #print("\n voted_card: ", voted_card)
+
+        #if user_card and self.button_id == list(played_cards_by_players.values()).index(user_card) + 1:
+        if user_card == voted_card:
+            await interaction.response.send_message("Non puoi votare la tua stessa carta!", ephemeral=True)
             return
 
         # Gestisci il voto dell'utente
@@ -162,7 +180,7 @@ async def describe_and_choose(ctx: commands.Context, numero_carta: int, descript
 # Comando per i giocatori per scegliere una carta
 @bot.hybrid_command(name="playcard", description="Gioca una carta")
 async def play_card(ctx: commands.Context, numero_carta: int):
-    global storyteller_index, hands, played_cards
+    global storyteller_index, hands, played_cards, played_cards_by_players
     storyteller = players[storyteller_index]
 
     # Controllo se l'autore del comando è il narratore
@@ -183,6 +201,7 @@ async def play_card(ctx: commands.Context, numero_carta: int):
     # Selezione della carta da parte del giocatore
     carta_scelta = hand.pop(numero_carta - 1)  # Rimuove la carta dalla mano del giocatore
     played_cards.append((ctx.author, carta_scelta))  # Aggiunge la carta giocata
+    played_cards_by_players[ctx.author] = carta_scelta
     await send_message(ctx, f"{ctx.author.display_name} ha giocato una carta.")
 
     # Controllo se tutti i giocatori (escluso il narratore) hanno giocato una carta
@@ -198,12 +217,14 @@ async def show_cards(ctx: commands.Context):
 
     # Prepara una lista di file delle immagini delle carte e testo da inviare in un solo messaggio
     carte_da_mostrare = []
+    played_card_names = []
     messaggio_carte = "Ecco le carte:\n"
 
     # Prepara il messaggio contenente i numeri delle carte
     for i, (player, card) in enumerate(played_cards, start=1):
         file_path = os.path.join(cards_folder, card)
         carte_da_mostrare.append(discord.File(file_path))  # Aggiungi il file della carta alla lista
+        played_card_names.append(card)
 
     # Invia tutte le carte in un solo messaggio
     await ctx.send(messaggio_carte, files=carte_da_mostrare)
@@ -211,7 +232,7 @@ async def show_cards(ctx: commands.Context):
     # Crea i bottoni dinamicamente in base al numero di carte
     num_buttons = len(played_cards)
     storyteller = players[storyteller_index]
-    view = DynamicVoteButton(ctx, num_buttons, storyteller)
+    view = DynamicVoteButton(ctx, num_buttons, storyteller, played_card_names)
     await ctx.send("Scegli la carta che pensi sia quella del narratore cliccando su un bottone:", view=view)
 
     # Aggiungi la logica per gestire i voti al termine della votazione
@@ -273,6 +294,7 @@ async def calculate_scores(ctx: commands.Context):
     storyteller_card = None
     hands.clear()
     played_cards.clear()
+    played_cards_by_players.clear()
     storyteller_chose = False
     votes.clear()
     deck = copy.deepcopy(complete_deck)
