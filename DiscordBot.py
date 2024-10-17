@@ -130,7 +130,7 @@ async def describe_and_choose(ctx: commands.Context, numero_carta: int, descript
     storyteller = players[storyteller_index]
 
     # Controllo se l'autore del comando è il narratore
-    if ctx.author != storyteller:
+    if ctx.author.id != storyteller.id:
         await send_message(ctx, "Solo il narratore può scegliere e descrivere la carta in questa fase.")
         return
     
@@ -276,7 +276,12 @@ async def calculate_scores(ctx: commands.Context):
 # Funzione per mostrare i punteggi
 async def display_scores(ctx: commands.Context):
     global points
-    punteggi = "\n".join([f"{player.display_name}: {points.get(player, 0)} punti" for player in players])
+    punteggi = "```md\n"
+    punteggi += "| Giocatore         | Punti |\n"
+    punteggi += "|-------------------|-------|\n"
+    for player in players:
+        punteggi += f"| {player.display_name:<17} | {points.get(player, 0):<5} |\n"
+    punteggi += "```"
     await send_message(ctx, f"Punteggi attuali:\n{punteggi}")
 
 
