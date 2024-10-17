@@ -149,14 +149,24 @@ async def show_cards(ctx: commands.Context):
     # Mescola le carte
     random.shuffle(played_cards)
 
-    # Mostra le carte in ordine casuale senza rivelare chi le ha giocate
+    # Prepara una lista di file delle immagini delle carte e dei testi da inviare in un solo messaggio
+    carte_da_mostrare = []
+    messaggio_carte = "Ecco le carte:\n"
+    #messaggio_carte = ""
+
+    # Prepara il messaggio contenente i numeri delle carte
     for i, (player, card) in enumerate(played_cards, start=1):
         file_path = os.path.join(cards_folder, card)
-        await send_message(ctx, f"Carta {i}:")
-        await ctx.send(file=discord.File(file_path))
+        #messaggio_carte += f"Carta {i}:\n"
+        carte_da_mostrare.append(discord.File(file_path))  # Aggiungi il file della carta alla lista
+
+    #messaggio_carte.append("\n Votate la carta che pensate sia quella del narratore usando !vote [numero_carta].")
+    # Invia tutte le carte in un solo messaggio
+    await ctx.send(messaggio_carte, files=carte_da_mostrare)
+    #await ctx.send(messaggio_carte, files=carte_da_mostrare)
 
     # Informa i giocatori di votare
-    await send_message(ctx, "Votate la carta che pensate sia quella del narratore usando !vote [numero_carta].")
+    #await send_message(ctx, "Votate la carta che pensate sia quella del narratore usando !vote [numero_carta].")
 
 
 # Comando per votare una carta
