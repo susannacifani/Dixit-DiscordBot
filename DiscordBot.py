@@ -25,13 +25,15 @@ storyteller_chose = False
 votes = {}  # Dizionario che memorizza i voti
 points = {}  # Punteggi per i giocatori
 
-# Classe per i bottoni di votazione dinamici
+# Modifica la classe DynamicVoteButton per gestire i voti
 class DynamicVoteButton(discord.ui.View):
     def __init__(self, ctx, num_buttons):
         super().__init__(timeout=None)
         self.ctx = ctx
         self.result = None
         self.voted_users = set()  # Set per tracciare chi ha votato
+        global votes
+        votes = {i: 0 for i in range(1, num_buttons + 1)}  # Inizializza i voti per la votazione
         self.create_buttons(num_buttons)
 
     # Funzione per creare i bottoni dinamicamente
@@ -39,7 +41,7 @@ class DynamicVoteButton(discord.ui.View):
         for i in range(1, num_buttons + 1):
             self.add_item(VoteButton(label=str(i), button_id=i, parent_view=self))
 
-# Classe per gestire il singolo bottone di voto
+# Modifica la classe VoteButton
 class VoteButton(discord.ui.Button):
     def __init__(self, label, button_id, parent_view):
         super().__init__(label=label, style=discord.ButtonStyle.primary, custom_id=str(button_id))
@@ -50,10 +52,18 @@ class VoteButton(discord.ui.Button):
         # Controlla se l'utente ha già votato
         if interaction.user.id in self.parent_view.voted_users:
             await interaction.response.send_message("Hai già votato!", ephemeral=True)
-        else:
-            # Gestisci il voto dell'utente
-            self.parent_view.voted_users.add(interaction.user.id)  # Aggiungi l'utente alla lista di chi ha votato
-            await interaction.response.send_message(f"Hai votato per la carta {self.button_id}!", ephemeral=True)
+            return
+
+        # Gestisci il voto dell'utente
+        self.parent_view.voted_users.add(interaction.user.id)  # Aggiungi l'utente alla lista di chi ha votato
+        votes[self.button_id] += 1  # Incrementa il voto per la carta scelta
+        await interaction.response.send_message(f"Hai votato per la carta {self.button_id}!", ephemeral=True)
+
+        # Controlla se tutti i giocatori hanno votato
+        if len(self.parent_view.voted_users) == len(players) - 1:  # Escludi il narratore
+            await self.parent_view.ctx.send("Tutti hanno votato! Calcoliamo i punteggi...")
+            await calculate_scores(self.parent_view.ctx)  # Chiama il calcolo dei punteggi
+
 
 
 
@@ -197,49 +207,21 @@ async def show_cards(ctx: commands.Context):
     view = DynamicVoteButton(ctx, num_buttons)
     await ctx.send("Scegli la carta che pensi sia quella del narratore cliccando su un bottone:", view=view)
 
-
-# Comando per votare una carta
-@bot.hybrid_command(name="vote", description="Vota la carta che pensi sia del narratore")
-async def vote_card(ctx: commands.Context, numero_carta: int):
-    global storyteller_index, votes, played_cards
-    storyteller = players[storyteller_index]
-
-    votes = {i: 0 for i in range(1, len(played_cards) + 1)}  # Inizializza i voti per la votazione
-    player_votes = {i: [] for i in range(1, len(played_cards) + 1)}  # Tiene traccia dei voti dei giocatori
-
-    # Controllo se l'autore del comando è il narratore
-    if ctx.author == storyteller:
-        await send_message(ctx, "Il narratore non può votare.")
-        return
-
-    # Controllo se il numero della carta votata è valido
-    if numero_carta < 1 or numero_carta > len(played_cards):
-        await send_message(ctx, "Numero di carta non valido. Scegli un numero valido.")
-        return
-    
-    votes[numero_carta] += 1  # Aggiungi il voto per la carta scelta
-    player_votes[numero_carta].append(ctx.author.display_name)  # Aggiungi il nome del giocatore alla lista
-
-    display_votes = []
-    for carta, votanti in player_votes.items():  # Itera attraverso le chiavi e i valori del dizionario
-        if votanti:  # Se ci sono giocatori che hanno votato per questa carta
-            display_votes.append(f"Giocatori che hanno votato per la carta {carta}: {', '.join(votanti)}")
-        else:
-            display_votes.append(f"Giocatori che hanno votato per la carta {carta}: Nessuno")
-
-    # Controllo se tutti hanno votato
-    if sum(votes.values()) == len(players) - 1:
-        await send_message(ctx, "\n".join(display_votes))
-        await calculate_scores(ctx)
+    # Aggiungi la logica per gestire i voti al termine della votazione
+    await view.wait()  # Aspetta che i voti siano stati espressi
+    await calculate_scores(ctx)
 
 
 # Funzione per calcolare i punti
 async def calculate_scores(ctx: commands.Context):
     global storyteller_card, played_cards, votes, points, storyteller_index, deck, round_index, storyteller_chose
     storyteller = players[storyteller_index]
+    #print("\n Contenuto di votes:", votes)
 
     # Trova l'indice della carta del narratore
     storyteller_card_index = next(i for i, (player, card) in enumerate(played_cards, start=1) if player == storyteller)
+
+    #print("\n storyteller_card_index:", storyteller_card_index)
 
     # Controlla se tutti o nessuno ha votato la carta del narratore
     if votes[storyteller_card_index] == 0 or votes[storyteller_card_index] == len(players) - 1:
