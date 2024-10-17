@@ -1,12 +1,6 @@
-#TEST ASYNC   
-#import asyncio
-#async def main():
-    #print(1)
-#asyncio.run(main())
-
-
 import discord
 from discord.ext import commands
+from discord import app_commands
 import os
 import random
 import copy
@@ -335,13 +329,22 @@ async def begin_game(ctx):
         await ctx.send("Servono almeno 3 giocatori per iniziare la partita.")
     else:
         await round(ctx)  # Chiama la funzione per gestire il turno
-    #game_started = False  # La partita è finita, non è più attiva
 
+# Comando per terminare forzatamente la partita
+@bot.command(name="endgame")
+async def end_game(ctx):
+    global game_started
+    player = ctx.author
+    if not game_started:
+        await ctx.send(f"Non c'è nessuna partita da interrompere.")
+    else: 
+        await ctx.send(f"Partita interrotta da {player.display_name}.")
+        game_started = False # La partita è finita, non è più attiva
 
 
 
 # Avvia il bot con il token
-bot.run('TOKEN ')
+bot.run('TOKEN')
 
 
 # Per ogni turno
